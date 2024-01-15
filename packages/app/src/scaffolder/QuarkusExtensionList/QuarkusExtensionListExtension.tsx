@@ -129,7 +129,7 @@ const Listbox = styled('ul')`
   }
 `;
 
-export const QuarkusExtensionList =  ({ onChange, rawErrors, required, formData }: FieldProps<string[]>) => {
+export const QuarkusExtensionList =  ({ onChange, rawErrors, required, formData, uiSchema }: FieldProps<string[]>) => {
   const {
     getRootProps,
     getInputLabelProps,
@@ -142,23 +142,49 @@ export const QuarkusExtensionList =  ({ onChange, rawErrors, required, formData 
     focused,
     setAnchorEl,
   } = useAutocomplete({
-    id: 'customized-hook-demo',
-    defaultValue: [quarkusExtensions[1].name],
+    id: 'quarkus-extension-list',
+    defaultValue: quarkusExtensions && quarkusExtensions.length > 0 ? [quarkusExtensions[0].name] : [],
     multiple: true,
     options: quarkusExtensions,
     getOptionLabel: (option) => option.id,
   });
 
+  const codeQuarkusUrl = uiSchema['ui:options']?.codeQuarkusUrl ?? 'https://stage.code.quarkus.io';
+  const filter = uiSchema['ui:options']?.filter ?? {};
+  const filteredExtensions = filter?.extensions ?? [];
+  const filteredCategories = filter?.categories ?? [];
+  const filteredKeywords = filter?.keywords ?? [];
+
+  const filterExtension = (e) => {
+          const matchingCateogory = !filteredCategories || filteredCategories.length == 0 || filteredCategories.some(regex => !e.category || e.category.match(regex));
+          const matchingName = !filteredExtensions || filteredExtensions.length == 0 || filteredExtensions.some(regex => e.id.match(regex));
+          const matchingKeywords = !filteredKeywords || filteredKeywords.length == 0 || filteredKeywords.some(regex => !e.keywords || e.keywords.some(keyword => keyword.match(regex)));
+          return matchingCateogory && matchingKeywords && matchingName;
+  }
+
   // Download the Component list
   useEffect(() => {
-      axios.get('https://code.quarkus.io/api/extensions').then((response) => {
+      console.log(JSON.stringify(uiSchema))
+      axios.get(codeQuarkusUrl + '/api/extensions',  { headers: {
+       'Accept': 'application/json',
+       'Access-Control-Allow-Origin': '*'
+      }}).then((response) => {
         response.data.forEach(e => {
-          console.log(e)
-          quarkusExtensions.push({ id: e.id, name: e.name })
-        })
+          if (filterExtension(e)) {
+              quarkusExtensions.push({ id: e.id, name: e.name })
+            }
+          })
+      }).catch((error) => {
+      // If we can't get a list of extensions, fall back
+      axios.get('/fallback-extensions.json').then((response) => {
+        response.data.forEach(e => {
+          if (filterExtension(e)) {
+              quarkusExtensions.push({ id: e.id, name: e.name })
+            }
+          }) 
+      })
       })
   }, []);
-
 
   // Populate value changes of autocomplete to the actual field
   useEffect(() => {
@@ -171,8 +197,7 @@ export const QuarkusExtensionList =  ({ onChange, rawErrors, required, formData 
     <FormControl
       margin="normal"
       required={required}
-      error={rawErrors?.length > 0 && !formData}
-    >
+      error={rawErrors?.length > 0 && !formData}>
       <div>
         <div {...getRootProps()}>
           <Label {...getInputLabelProps()}>Quarkus Extension</Label>
@@ -205,11 +230,6 @@ interface QuarkusExtensionType {
 }
 
 const quarkusExtensions = [
-  { id: 'quarkus-resteasy-reactive', name: 'Quarkus Resteasy Reactive' },
-  { id: 'quarkus-resteasy-reactive-jackson', name: 'Quarkus Resteasy Reactive Jackson' },
-  { id: 'quarkus-container-image-docker', name: 'Quarkus Container Image Docker' },
-  { id: 'quarkus-kubernetes', name: 'Quarkus Kubernetes' },
-  { id: 'quarkus-openshift', name: 'Quarkus OpenShift' },
 ];
 
 export const validateQuarkusExtension = (value: string, validation: FieldValidation) => { 
